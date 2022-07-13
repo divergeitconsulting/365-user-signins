@@ -1,6 +1,6 @@
 connect-azuread
 
-$sp = New-AzADServicePrincipal -DisplayName guestusersigins
+$sp = New-AzADServicePrincipal -DisplayName usersigins
 Sleep 20
 $key = New-AzADServicePrincipalCredential -ObjectId $sp.Id
 
