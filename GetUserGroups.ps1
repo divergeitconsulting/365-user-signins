@@ -1,6 +1,6 @@
 Connect-azuread
 
-$guests = Get-AzureADUser | Where-Object {($_.UserType -eq "Guest")}
+$guests = Get-AzureADUser -top 10000 | Where-Object {($_.UserType -eq "Guest")}
 foreach($guest in $guests){
     $groups= Get-AzureADUserMembership -ObjectId $guest.ObjectId
     foreach($group in $groups){
@@ -14,4 +14,3 @@ foreach($guest in $guests){
         $exportvalues | Export-CSV -path $env:userprofile\guestgroups.csv -Append -NoTypeInformation
     }
 }
-
