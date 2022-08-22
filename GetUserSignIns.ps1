@@ -20,6 +20,11 @@ $token = ($tokenRequest.Content | ConvertFrom-Json).access_token
 
 # Base URL
 $headers = @{Authorization = "Bearer $token"}
+$groupheaders = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+$groupheaders = @{}
+$groupheaders.Add("Authorization", "Bearer $token")
+$groupheaders.Add("ConsistencyLevel", "eventual")
+
 
 # Get User sign in data
 Write-Host "Accessing the Graph to get user sign-in data..."
@@ -34,7 +39,10 @@ Foreach ($User in $SignInData.Value) {
    Else { #No sign in data for this user account
       $LastSignIn = "Never or > 180 days" 
       $DaysSinceSignIn = "N/A" }
-     
+   $upn = $user.userPrincipalName
+   $membershipuri = "https://graph.microsoft.com/v1.0/users/$upn/memberOf/$count"
+   try{$membershipdata = (Invoke-RestMethod -Uri $membershipuri -Headers $groupheaders -Method Get -ContentType "application/json")}
+   catch{$membershipdata}
    $ReportLine  = [PSCustomObject] @{          
      UPN                = $User.UserPrincipalName
      DisplayName        = $User.DisplayName
@@ -43,7 +51,8 @@ Foreach ($User in $SignInData.Value) {
      Created            = Get-Date($User.CreatedDateTime) -format g      
      LastSignIn         = $LastSignIn
      DaysSinceSignIn    = $DaysSinceSignIn
-     UserType           = $User.UserType }
+     UserType           = $User.UserType 
+     GroupCount         = $membershipdata.value.count}
    $Report.Add($ReportLine) 
 } # End ForEach
 
@@ -55,13 +64,17 @@ While ($NextLink -ne $Null) { # We do... so process them.
    $SignInData = Invoke-WebRequest -Method GET -Uri $NextLink -ContentType "application/json" -Headers $Headers
    $SignInData = $SignInData | ConvertFrom-JSon
    ForEach ($User in $SignInData.Value) {  
-
+   $upn = $user.userPrincipalName
+   try{$membershipdata = (Invoke-RestMethod -Uri $membershipuri -Headers $groupheaders -Method Get -ContentType "application/json")}
+   catch{$membershipdata}
    If ($Null -ne $User.SignInActivity)     {
       $LastSignIn = Get-Date($User.SignInActivity.LastSignInDateTime) -format g
       $DaysSinceSignIn = (New-TimeSpan $LastSignIn).Days }
    Else { #No sign in data for this user account
       $LastSignIn = "Never or > 180 days" 
       $DaysSinceSignIn = "N/A" }
+
+   
      
    $ReportLine  = [PSCustomObject] @{  
      UPN                = $User.UserPrincipalName
@@ -71,12 +84,13 @@ While ($NextLink -ne $Null) { # We do... so process them.
      Created            = Get-Date($User.CreatedDateTime) -format g      
      LastSignIn         = $LastSignIn
      DaysSinceSignIn    = $DaysSinceSignIn
-     UserType           = $User.UserType        }
+     UserType           = $User.UserType
+     GroupCount         = $membershipdata.value.count}
      $Report.Add($ReportLine) } 
 
    # Check for more data
    $NextLink = $SignInData.'@Odata.NextLink'
 } # End While
 
-Write-Host "All done. " $Report.Count "accounts processed - output available in c:\Temp\ReportUserSignin.csv."
-$Report | Export-CSV -NoTypeInformation c:\Temp\ReportUserSignin.csv
+Write-Host "All done. " $Report.Count "accounts processed - output available in $env:userprofile\ReportUserSignin.csv."
+$Report | Export-CSV -NoTypeInformation $env:userprofile\ReportUserSignin.csv
